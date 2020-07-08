@@ -1,8 +1,10 @@
 package com.example.coolweather.db;
 
+import org.litepal.annotation.Column;
 import org.litepal.crud.LitePalSupport;
 
 public class City extends LitePalSupport {
+    @Column(unique = true)
     private String cityID;
     private String cityName;
     private String cityPath;
@@ -27,4 +29,6 @@ public class City extends LitePalSupport {
     public void setCityPath(String cityPath) {
         this.cityPath = cityPath;
     }
+
+
 }

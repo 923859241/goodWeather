@@ -12,6 +12,8 @@ public class WeatherNow {
         @SerializedName("text")
         public String weatherPhenomena;//天气现象文字
 
+        public String code;//天气现象标识
+
         public String temperature;//温度，单位为c摄氏度或f华氏度
 
         @SerializedName("feels_like")

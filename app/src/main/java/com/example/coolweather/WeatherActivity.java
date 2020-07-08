@@ -28,6 +28,7 @@ import android.widget.Toast;
 
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.util.Util;
+import com.example.coolweather.db.AllWeatherData;
 import com.example.coolweather.gson.AirNow;
 import com.example.coolweather.gson.DayForecast;
 import com.example.coolweather.gson.HourForecast;
@@ -41,6 +42,7 @@ import com.example.coolweather.util.HttpUtil;
 import com.example.coolweather.util.Utility;
 
 import org.jetbrains.annotations.NotNull;
+import org.litepal.LitePal;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -101,10 +103,15 @@ public class WeatherActivity extends AppCompatActivity {
 
     private TextView umbrellaText;
 
+    //全局的天气数据
+    public String nowTempStr="25";
+    public String weatherCodeStr="5";
+
     @SuppressLint("ResourceAsColor")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        LitePal.initialize(this);
         //背景图与状态栏融合
         if (Build.VERSION.SDK_INT >= 21) {
             View decorView = getWindow().getDecorView();
@@ -140,13 +147,41 @@ public class WeatherActivity extends AppCompatActivity {
         swipeRefresh = (SwipeRefreshLayout)findViewById(R.id.swipe_refresh);
         swipeRefresh.setColorSchemeColors(R.color.colorPrimary);
 
-        //SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
+        //初始化天气-数据
+        List<AllWeatherData> getAllWeatherDataList;
+        String weatherNowString;
+        String weatherForecastString;
+        String weatherHourString;
+        String airNowString;
+        String suggestionString;
+
+
+        //从sharePreferences获取数据or从数据库获取数据
         SharedPreferences prefs = getSharedPreferences("WeatherData",MODE_PRIVATE);
-        String weatherNowString = prefs.getString("weatherNow",null);
-        String weatherForecastString = prefs.getString("weatherForecast",null);
-        String weatherHourString = prefs.getString("weatherHour",null);
-        String airNowString = prefs.getString("airNow",null);
-        String suggestionString = prefs.getString("suggestion",null);
+        //从intent获取数据
+        String cityID = getIntent().getStringExtra("cityId");
+        if(cityID!=null){
+            getAllWeatherDataList = LitePal.where("cityID=?", cityID).find(AllWeatherData.class);
+        }else{
+            getAllWeatherDataList = null;
+        }
+
+        //优先从数据库查询是否有数据
+        if(getAllWeatherDataList!=null && getAllWeatherDataList.size()>0){
+            AllWeatherData getAllWeatherData = getAllWeatherDataList.get(0);
+            weatherNowString = getAllWeatherData.getWeatherNow();
+            weatherForecastString = getAllWeatherData.getWeatherForecast();
+            weatherHourString = getAllWeatherData.getWeatherHour();
+            airNowString = getAllWeatherData.getAirNow();
+            suggestionString = getAllWeatherData.getSuggestion();
+        }else {
+            //默认获取数据
+            weatherNowString = prefs.getString("weatherNow",null);
+            weatherForecastString = prefs.getString("weatherForecast",null);
+            weatherHourString = prefs.getString("weatherHour",null);
+            airNowString = prefs.getString("airNow",null);
+            suggestionString = prefs.getString("suggestion",null);
+        }
 
         //处理图片
         String bingPic = prefs.getString("bing_pic",null);
@@ -158,32 +193,35 @@ public class WeatherActivity extends AppCompatActivity {
         /*
         判断是否有没有缓存 自动更新数据
          */
-        if(false&&weatherNowString != null && weatherForecastString!=null &&
-        weatherHourString != null && airNowString!=null){
-            //有缓存则直接解析天气数据
+        if( cityID==null || (cityID!=null && getAllWeatherDataList.size()>0) ){
+            //上层活动没有传输cityID 或 数据库有数据 则能直接解析加载
+            cityID = prefs.getString("cityId",null);
             WeatherForecast weatherForecast = Utility.handleWeatherForecastResponse(weatherForecastString);
             WeatherNow weatherNow = Utility.handleWeatherNowResponse(weatherNowString);
             WeatherHour weatherHour = Utility.handleWeatherHourResponse(weatherHourString);
             AirNow airNow = Utility.handleAirNowResponse(airNowString);
             Suggestion suggestion = Utility.handleSuggestionResponse(suggestionString);
-            mWeatherId = weatherForecast.location.cityId;
+            mWeatherId = cityID;
 
-            showWeatherForecastInfo(weatherForecast);
             showWeatherNowInfo(weatherNow);
+            showWeatherForecastInfo(weatherForecast);
             showAirInfo(airNow);
             showWeatherHourInfo(weatherHour);
             showSuggestion(suggestion);
         }else{
             //无缓存则去服务器查询天气
-            String weatherId = getIntent().getStringExtra("cityId");
+            String weatherId = prefs.getString("cityId",null);
             mWeatherId = weatherId;
             weatherLayout.setVisibility(View.INVISIBLE);
             requestWeather(weatherId);
-        }
+         }
+
+
+
         navButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Toast.makeText(WeatherActivity.this,"更新城市",Toast.LENGTH_LONG).show();
+                Toast.makeText(WeatherActivity.this,"切换城市",Toast.LENGTH_LONG).show();
                 drawerLayout.openDrawer(GravityCompat.START);
             }
         });
@@ -198,7 +236,7 @@ public class WeatherActivity extends AppCompatActivity {
         newsButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Toast.makeText(WeatherActivity.this,"打开新闻",Toast.LENGTH_LONG).show();
+                Toast.makeText(WeatherActivity.this,"打开携程",Toast.LENGTH_LONG).show();
                 Intent intent = new Intent(WeatherActivity.this, NewsActivity.class);
                 startActivity(intent);
             }
@@ -207,7 +245,7 @@ public class WeatherActivity extends AppCompatActivity {
 
     //根据城市ID请求城市信息
     public void requestWeather(final String weatherId) {
-        String key = "SkoWrm11o2enBSrSJ";
+        String key = "SmyPZBmIStN_3cFvj";
         String forecastUrl = "https://api.seniverse.com/v3/weather/daily.json?key="+key +
                 "&start=0&days=7&location=" + weatherId;
         String nowUrl = "https://api.seniverse.com/v3/weather/now.json?key="+key +
@@ -218,6 +256,11 @@ public class WeatherActivity extends AppCompatActivity {
                 "&location=" + weatherId;
         String suggestionUrl = "https://api.seniverse.com/v3/life/suggestion.json?key="+key +
                 "&location=" + weatherId;
+        //保存全部天气数据
+        final AllWeatherData allWeatherData = new AllWeatherData();
+        allWeatherData.setCityID(weatherId);
+        //保存AllWeatherData表的数据
+        allWeatherData.save();
 
         //加载图片
         loadBingPic();
@@ -241,13 +284,18 @@ public class WeatherActivity extends AppCompatActivity {
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
-                        if(weatherNow!=null && weatherNow.now.clouds!=null){
+                        if(weatherNow!=null){
                             SharedPreferences.Editor editor = getSharedPreferences("WeatherData", Context.MODE_PRIVATE).edit();
+                            //缓存到数据库
+                            AllWeatherData weatherData = LitePal.where("cityID=?", weatherId).find(AllWeatherData.class).get(0);
+                            weatherData.setWeatherNow(responseText);
+                            weatherData.save();
+
                             editor.putString("weatherNow",responseText);
                             editor.apply();
                             showWeatherNowInfo(weatherNow);
                         }else{
-                            Toast.makeText(WeatherActivity.this,"获取当天天气信息失败",
+                            Toast.makeText(WeatherActivity.this,"获取天气信息失败",
                                     Toast.LENGTH_SHORT).show();
                         }
                     }
@@ -260,12 +308,12 @@ public class WeatherActivity extends AppCompatActivity {
             @Override
             public void onFailure(@NotNull Call call, @NotNull IOException e) {
                 e.printStackTrace();
-                runOnUiThread(new Runnable() {
+/*                runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
                         Toast.makeText(WeatherActivity.this,"访问天气URL失败",Toast.LENGTH_LONG).show();
                     }
-                });
+                });*/
             }
 
             @Override
@@ -276,13 +324,18 @@ public class WeatherActivity extends AppCompatActivity {
                     @Override
                     public void run() {
                         if(airNow!=null){
+                            //缓存到数据库
+                            AllWeatherData weatherData = LitePal.where("cityID=?", weatherId).find(AllWeatherData.class).get(0);
+                            weatherData.setAirNow(responseText);
+                            weatherData.save();
+
                             SharedPreferences.Editor editor = getSharedPreferences("WeatherData", Context.MODE_PRIVATE).edit();
                             editor.putString("airNow",responseText);
                             editor.apply();
                             showAirInfo(airNow);
                         }else{
-                            Toast.makeText(WeatherActivity.this,"获取当天天气信息失败",
-                                    Toast.LENGTH_SHORT).show();
+/*                            Toast.makeText(WeatherActivity.this,"获取当天天气信息失败",
+                                    Toast.LENGTH_SHORT).show();*/
                         }
                     }
                 });
@@ -294,12 +347,12 @@ public class WeatherActivity extends AppCompatActivity {
             @Override
             public void onFailure(@NotNull Call call, @NotNull IOException e) {
                 e.printStackTrace();
-                runOnUiThread(new Runnable() {
+/*                runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
                         Toast.makeText(WeatherActivity.this,"获取未来天气信息失败",Toast.LENGTH_LONG).show();
                     }
-                });
+                });*/
                 swipeRefresh.setRefreshing(false);
             }
             @Override
@@ -310,14 +363,19 @@ public class WeatherActivity extends AppCompatActivity {
                     @Override
                     public void run() {
                         if(weatherForecast!=null && weatherForecast.location!=null){
+                            //缓存到数据库
+                            AllWeatherData weatherData = LitePal.where("cityID=?", weatherId).find(AllWeatherData.class).get(0);
+                            weatherData.setWeatherForecast(responseText);
+                            weatherData.save();
+
                             SharedPreferences.Editor editor = getSharedPreferences("WeatherData", Context.MODE_PRIVATE).edit();
                             editor.putString("weatherForecast",responseText);
                             editor.apply();
                             mWeatherId = weatherForecast.location.cityId;
                             showWeatherForecastInfo(weatherForecast);
                         }else{
-                            Toast.makeText(WeatherActivity.this,"获取未来天气信息失败",
-                                    Toast.LENGTH_SHORT).show();
+/*                            Toast.makeText(WeatherActivity.this,"获取未来天气信息失败",
+                                    Toast.LENGTH_SHORT).show();*/
                         }
                         swipeRefresh.setRefreshing(false);
                     }
@@ -330,12 +388,12 @@ public class WeatherActivity extends AppCompatActivity {
             @Override
             public void onFailure(@NotNull Call call, @NotNull IOException e) {
                 e.printStackTrace();
-                runOnUiThread(new Runnable() {
+/*                runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
                         Toast.makeText(WeatherActivity.this,"获取未来小时的天气信息失败",Toast.LENGTH_LONG).show();
                     }
-                });
+                });*/
             }
             @Override
             public void onResponse(@NotNull Call call, @NotNull Response response) throws IOException {
@@ -345,13 +403,18 @@ public class WeatherActivity extends AppCompatActivity {
                     @Override
                     public void run() {
                         if(weatherHour!=null){
+                            //缓存到数据库
+                            AllWeatherData weatherData = LitePal.where("cityID=?", weatherId).find(AllWeatherData.class).get(0);
+                            weatherData.setWeatherHour(responseText);
+                            weatherData.save();
+
                             SharedPreferences.Editor editor = getSharedPreferences("WeatherData", Context.MODE_PRIVATE).edit();
                             editor.putString("weatherHour",responseText);
                             editor.apply();
                             showWeatherHourInfo(weatherHour);
                         }else{
-                            Toast.makeText(WeatherActivity.this,"获取未来小时天气信息失败",
-                                    Toast.LENGTH_SHORT).show();
+/*                            Toast.makeText(WeatherActivity.this,"获取未来小时天气信息失败",
+                                    Toast.LENGTH_SHORT).show();*/
                         }
                     }
                 });
@@ -363,12 +426,12 @@ public class WeatherActivity extends AppCompatActivity {
             @Override
             public void onFailure(@NotNull Call call, @NotNull IOException e) {
                 e.printStackTrace();
-                runOnUiThread(new Runnable() {
+/*                runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
                         Toast.makeText(WeatherActivity.this,"获取建议信息失败",Toast.LENGTH_LONG).show();
                     }
-                });
+                });*/
             }
             @Override
             public void onResponse(@NotNull Call call, @NotNull Response response) throws IOException {
@@ -378,18 +441,24 @@ public class WeatherActivity extends AppCompatActivity {
                     @Override
                     public void run() {
                         if(suggestion!=null){
+                            //缓存到数据库
+                            AllWeatherData weatherData = LitePal.where("cityID=?", weatherId).find(AllWeatherData.class).get(0);
+                            weatherData.setSuggestion(responseText);
+                            weatherData.save();
+
                             SharedPreferences.Editor editor = getSharedPreferences("WeatherData", Context.MODE_PRIVATE).edit();
                             editor.putString("suggestion",responseText);
                             editor.apply();
                             showSuggestion(suggestion);
                         }else{
-                            Toast.makeText(WeatherActivity.this,"获取建议信息失败",
-                                    Toast.LENGTH_SHORT).show();
+/*                            Toast.makeText(WeatherActivity.this,"获取建议信息失败",
+                                    Toast.LENGTH_SHORT).show();*/
                         }
                     }
                 });
             }
         });
+
     }
 
     //展示当前时刻天气数据
@@ -402,7 +471,8 @@ public class WeatherActivity extends AppCompatActivity {
         String updateTime = weatherNow.updateTime.split("T")[1];
         updateTime =updateTime.split(":")[0]+":"+updateTime.split(":")[1];
 
-
+        nowTempStr = weatherNow.now.temperature;
+        weatherCodeStr = weatherNow.now.code;
         String degree = weatherNow.now.temperature+"℃";
         String phenomena = weatherNow.now.weatherPhenomena;
         String feelLike = weatherNow.now.feelsLike+"℃";
@@ -492,10 +562,18 @@ public class WeatherActivity extends AppCompatActivity {
             return;
         }
 
+        int nowTemp = Integer.valueOf(nowTempStr).intValue();
+        int weatherCode = Integer.valueOf(weatherCodeStr).intValue();
         String dating= "约会建议: "+suggestion.dating.brief+"\n"+suggestion.dating.details;
         String sunscreen = "防晒建议: "+suggestion.sunscreen.brief+"\n"+suggestion.sunscreen.details;
         String umbrella = "雨伞建议: "+suggestion.umbrella.brief+"\n"+suggestion.umbrella.details;
 
+        //修改根据天气修改约会建议
+        if(nowTemp>25||weatherCode>5){
+            dating= "约会建议: 室内约会\n当前的天气情况,强行室外约会的话,建议分手。";
+        }else{
+            dating= "约会建议: 室外约会\n当前的天气情况,很适合到室外去增进一下情侣间的感情噢";
+        }
         datingText.setText(dating);
         sunscreenText.setText(sunscreen);
         umbrellaText.setText(umbrella);

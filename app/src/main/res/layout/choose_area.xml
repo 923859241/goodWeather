@@ -41,7 +41,13 @@
     <ListView
         android:id="@+id/list_view"
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+        android:layout_height="wrap_content" />
+    <Button
+        android:id="@+id/delete_all_city"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="清除历史数据"
+        android:layout_margin="10dp"/>
 </LinearLayout>
 
     <!--

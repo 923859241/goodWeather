@@ -11,5 +11,4 @@ public class AirNow {
         @SerializedName("quality")
         public String airQuality;
     }
-
 }

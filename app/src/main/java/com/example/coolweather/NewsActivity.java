@@ -15,6 +15,6 @@ public class NewsActivity extends AppCompatActivity {
         WebView webView = (WebView)findViewById(R.id.web_view);
         webView.getSettings().setJavaScriptEnabled(true);
         webView.setWebViewClient(new WebViewClient());
-        webView.loadUrl("https://news.qq.com/");
+        webView.loadUrl("https://www.ctrip.com/?sid=155952&allianceid=4897&ouid=index");
     }
 }
